@@ -1,5 +1,5 @@
-imports(XML)
-imports(RCurl)
+import(XML)
+import(RCurl)
 
 export(SPARQL)
 export(commonns)
