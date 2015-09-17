@@ -1,3 +1,6 @@
+imports(XML)
+imports(RCurl)
+
 export(SPARQL)
 export(commonns)
 export(sparqlns)

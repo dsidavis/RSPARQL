@@ -7,7 +7,7 @@ Author: Willem Robert van Hage <willem.van.hage@synerscope.com>, with contributi
 Maintainer: Willem Robert van Hage <willem.van.hage@synerscope.com>
 Description: Use SPARQL to pose SELECT or UPDATE queries to an end-point. 
 License: GPL-3
-Depends: XML, RCurl
+Imports: XML, RCurl
 LazyLoad: yes
 Packaged: 2013-10-24 01:05:19 UTC; wrvhage
 NeedsCompilation: no

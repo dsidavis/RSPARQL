@@ -1,23 +1,26 @@
-library(XML)
-library(RCurl)
+#library(XML)
+#library(RCurl)
 
 sparqlns <- c('s'='http://www.w3.org/2005/sparql-results#')
-commonns <- c('xsd','<http://www.w3.org/2001/XMLSchema#>',
-              'rdf','<http://www.w3.org/1999/02/22-rdf-syntax-ns#>',
-              'rdfs','<http://www.w3.org/2000/01/rdf-schema#>',
-              'owl','<http://www.w3.org/2002/07/owl#>',
-              'skos','<http://www.w3.org/2004/02/skos/core#>',
-              'dc','<http://purl.org/dc/elements/1.1/>',
-              'foaf','<http://xmlns.com/foaf/0.1/>',
-              'wgs84','<http://www.w3.org/2003/01/geo/wgs84_pos#>',
-              'qb','<http://purl.org/linked-data/cube#>')
+commonns <- c('xsd' = '<http://www.w3.org/2001/XMLSchema#>',
+              'rdf' = '<http://www.w3.org/1999/02/22-rdf-syntax-ns#>',
+              'rdfs' = '<http://www.w3.org/2000/01/rdf-schema#>',
+              'owl' ='<http://www.w3.org/2002/07/owl#>',
+              'skos' = '<http://www.w3.org/2004/02/skos/core#>',
+              'dc' = '<http://purl.org/dc/elements/1.1/>',
+              'foaf' = '<http://xmlns.com/foaf/0.1/>',
+              'wgs84' = '<http://www.w3.org/2003/01/geo/wgs84_pos#>',
+              'qb' = '<http://purl.org/linked-data/cube#>')
 
 
 #
 # Read SPARQL results from end-point
 #
-SPARQL <- function(url="http://localhost/", query="", update="", 
-                   ns = NULL, param = "", extra = NULL, format="xml", curl_args=NULL, parser_args=NULL,
+SPARQL <- function(url = "http://localhost/", query="", 
+                   ns = NULL, param = "",
+                   update = FALSE, 
+                   addPrefix = length(ns) & !grepl("PREFIX", query),
+                   extra = NULL, format="xml", curl_args = list(), parser_args = list(),
                    curl = getCurlHandle())
 {
   if (!is.null(extra)) 
@@ -28,15 +31,22 @@ SPARQL <- function(url="http://localhost/", query="", update="",
     extrastr <- ""
 
 
-  if(!missing(query)) {
+  if(!update) {
     if (param == "") 
       param <- "query"
 
+    if(addPrefix && length(ns)) 
+       query = paste( c(sprintf("PREFIX %s: %s", names(ns), ns), "", q), collapse = "\n")
+
     if(format == 'xml') {
-      tf <- do.call(getURL, append(list(url = paste(url, '?', param, '=', gsub('\\+','%2B', URLencode(query, reserved = TRUE)), extrastr, sep=""),
-                                               httpheader = c(Accept="application/sparql-results+xml"), curl = curl),
-                                          curl_args))
-      df <- processXMLResults(tf, parser_args, sparqlns, ns)      
+        args = list(query = query)
+        args = append(args, extra)
+        curl_args[["httpheader"]] = c(Accept="application/sparql-results+xml")
+        tf <- getForm(url, .params = args, .opts = curl_args, curl = curl)
+#      tf <- do.call(getURL, append(list(url = paste(url, '?', param, '=', gsub('\\+','%2B', URLencode(query, reserved = TRUE)), extrastr, sep=""),
+#                                               httpheader = c(Accept="application/sparql-results+xml"), curl = curl),
+#                                          curl_args))
+        df <- processXMLResults(tf, parser_args, sparqlns, ns)      
 
     } else if (format %in% c('csv', 'tsv')) {
       tf <- do.call(getURL, append(list(url = paste(url, '?', param, '=', gsub('\\+','%2B', URLencode(query,reserved=TRUE)), extrastr, sep="")),
@@ -46,20 +56,19 @@ SPARQL <- function(url="http://localhost/", query="", update="",
       if (!is.null(ns)) 
         df <- dropNS(df, ns)
     } else {
-      cat('unknown format "', format, '"\n\n', sep="")
+      warning('unknown format "', format, '"\n\n')
       return(list(results = NULL, namespaces = ns))
     }
     
     list(results = df, namespaces = ns)
-  } else if(update != "") {
+  } else {
       
     if (param == "") 
       param <- "update"
 
     extra[[param]] <- update
     do.call(postForm, append(list(url, .params = extra), curl_args))
-  } else
-      stop("no query or update")
+  } 
 }
 
 
@@ -67,9 +76,8 @@ processXMLResults =
 function(txt, parser_args, sparqlns, ns)
 {
     DOM <- do.call(xmlParse, append(list(txt), parser_args))
-browser()    
     if(length(getNodeSet(DOM, '//s:result[1]', namespaces = sparqlns)) == 0) {
-        df <- data.frame(c())
+        df <- data.frame()
     } else {
         nodes = getNodeSet(DOM, '//s:head/s:variable', namespaces = sparqlns)
         
@@ -77,7 +85,7 @@ browser()
 
         ns2 <- noBrackets(ns)
 
-        res <- get_attr(attrs, DOM, ns2)
+        res <- xget_attr(attrs, DOM, ns2)
 
         rm(DOM)
 
@@ -85,11 +93,12 @@ browser()
            df <- structure(data.frame(unlist(res), stringsAsFactors = FALSE), names = attrs)
         else {
             df <- data.frame(res, stringsAsFactors = FALSE)
+            names(df) = attrs
             rm(res)
         
                 # FIXME: find neater way to unlist columns
-            for(i in 1:length(df)) 
-                df[[i]] <- as.vector(unlist(df[[i]]))
+#            for(i in 1:length(df)) 
+#                df[[i]] <- as.vector(unlist(df[[i]]))
         }
     }
 
@@ -116,8 +125,8 @@ get_attr <- function(attrs, DOM, ns) {
            function(r) { 
              sapply(attrs,
                     function(attr) {
-                      get_value(getNodeSet(xmlDoc(r),
-                                           paste('//s:binding[@name="',attr,'"]/*[1]',
+                      get_value(getNodeSet(r, 
+                                           paste('.//s:binding[@name="',attr,'"]/*[1]',
                                                  sep=''),
                                            namespaces=sparqlns)[[1]],
                                 ns)
@@ -127,13 +136,23 @@ get_attr <- function(attrs, DOM, ns) {
 
 
 xget_attr <- function(attrs, DOM, ns) {
-  lapply(attrs, getVarResults, DOM, ns)
+
+  if(TRUE) return(  lapply(attrs, getVarResults, DOM, ns) )
+
+   # we should really check that there is a node for each cell in the resulting data frame
+   # i.e. that there are as many nodes for each variable. This is a simple test.
+  nodes = lapply(sprintf("//s:result/s:binding[@name = '%s']", attrs), function(q) getNodeSet(DOM,  q, sparqlns))
+  if(!all(  sapply(nodes, length) == length(nodes[[1]])))
+      return(get_attr(attrs, DOM, ns))
+
+   lapply(nodes, function(ll) sapply(ll, get_value, ns))
+#   lapply(attrs, getVarResults, DOM, ns)
 }
 
 getVarResults =
 function(id, DOM, ns)
 {    
-  rs <- xpathSApply(DOM, sprintf("//s:result/s:binding[@name = '%s']", id), get_value, namespaces = sparqlns)
+  rs <- xpathSApply(DOM, sprintf("//s:result/s:binding[@name = '%s']", id), get_value, ns, namespaces = sparqlns)
 
 #lapply(rs,
 #         function(r) { 
@@ -150,24 +169,26 @@ function(id, DOM, ns)
 
 
 
-get_value <- function(node,ns) {
+get_value <- function(node, ns) {
   # FIXME: very slow...
-  if (is.null(node)) { return(NA) }
-  doc <- xmlDoc(node)
-  uri = xpathSApply(doc, '/s:uri', xmlValue, namespaces = sparqlns)
+  if (is.null(node))
+      return(NA)
+  
+  doc <- node # xmlDoc(node)
+  uri = xpathSApply(doc, './s:uri', xmlValue, namespaces = sparqlns)
   if(length(uri) == 0) {
-    literal = xpathSApply(doc, '/s:literal', xmlValue, namespaces = sparqlns)
+    literal = xpathSApply(doc, './s:literal', xmlValue, namespaces = sparqlns)
     if(length(literal) == 0) {
-      bnode = xpathSApply(doc, '/s:bnode', xmlValue, namespaces = sparqlns)
+      bnode = xpathSApply(doc, './s:bnode', xmlValue, namespaces = sparqlns)
       if (length(bnode) == 0) { # error
         '***oops***'
       } else { # found bnode
         paste('_:genid', bnode, sep='')
       }
     } else { # found literal
-      lang = xpathApply(doc, '/s:literal', xmlGetAttr, "xml:lang", namespaces=sparqlns)
+      lang = xpathApply(doc, './s:literal', xmlGetAttr, "xml:lang", namespaces=sparqlns)
       if(is.null(lang[[1]])) {
-        type = xpathApply(doc, '/s:literal', xmlGetAttr, "datatype", namespaces=sparqlns)
+        type = xpathApply(doc, './s:literal', xmlGetAttr, "datatype", namespaces=sparqlns)
         if(is.null(type[[1]])) {
           literal
         } else {
@@ -180,7 +201,7 @@ get_value <- function(node,ns) {
   } else { # found URI
     qname = qnames(uri, ns)
     if(qname == uri)
-      paste('<', uri, '>', sep="")
+      paste('<', uri, '>', sep="")  # just uri saves about 6% for 9000 x 2
     else
       qname
   }
@@ -208,65 +229,67 @@ qnames <- function(str0, ns_list) {
 }
 
 interpret_type <- function(type, literal,ns) {
-  qname <- qnames(type, ns)
-  if(unlist(qname) == unlist(type))
-    type_uri <- paste('<', type, '>', sep="")
-  else
-    type_uri <- qname
-  # FIXME: work out all simple types
+
+      # FIXME: work out all simple types
   if(type == "http://www.w3.org/2001/XMLSchema#double" ||
-    type == "http://www.w3.org/2001/XMLSchema#float" ||
-    type == "http://www.w3.org/2001/XMLSchema#decimal")
+     type == "http://www.w3.org/2001/XMLSchema#float" ||
+     type == "http://www.w3.org/2001/XMLSchema#decimal")
     as.double(literal)
   else if(type == "http://www.w3.org/2001/XMLSchema#integer" ||
-    type == "http://www.w3.org/2001/XMLSchema#int" ||
-    type == "http://www.w3.org/2001/XMLSchema#long" ||
-    type == "http://www.w3.org/2001/XMLSchema#short" ||
-    type == "http://www.w3.org/2001/XMLSchema#byte" ||
-    type == "http://www.w3.org/2001/XMLSchema#nonNegativeInteger" ||
-    type == "http://www.w3.org/2001/XMLSchema#unsignedLong" ||
-    type == "http://www.w3.org/2001/XMLSchema#unsignedShort" ||
-    type == "http://www.w3.org/2001/XMLSchema#unsignedInt" ||
-    type == "http://www.w3.org/2001/XMLSchema#unsignedByte" ||
-    type == "http://www.w3.org/2001/XMLSchema#positiveInteger" ||
-    type == "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" ||
-    type == "http://www.w3.org/2001/XMLSchema#negativeInteger")
-  as.integer(literal)
+          type == "http://www.w3.org/2001/XMLSchema#int" ||
+          type == "http://www.w3.org/2001/XMLSchema#long" ||
+          type == "http://www.w3.org/2001/XMLSchema#short" ||
+          type == "http://www.w3.org/2001/XMLSchema#byte" ||
+          type == "http://www.w3.org/2001/XMLSchema#nonNegativeInteger" ||
+          type == "http://www.w3.org/2001/XMLSchema#unsignedLong" ||
+          type == "http://www.w3.org/2001/XMLSchema#unsignedShort" ||
+          type == "http://www.w3.org/2001/XMLSchema#unsignedInt" ||
+          type == "http://www.w3.org/2001/XMLSchema#unsignedByte" ||
+          type == "http://www.w3.org/2001/XMLSchema#positiveInteger" ||
+          type == "http://www.w3.org/2001/XMLSchema#nonPositiveInteger" ||
+          type == "http://www.w3.org/2001/XMLSchema#negativeInteger")
+        as.integer(literal)
   else if(type == "http://www.w3.org/2001/XMLSchema#boolean")
-    as.logical(literal)
+         as.logical(literal)
   else if(type == "http://www.w3.org/2001/XMLSchema#string" ||
-    type == "http://www.w3.org/2001/XMLSchema#normalizedString")
-    literal
+            type == "http://www.w3.org/2001/XMLSchema#normalizedString")
+         literal
   else if(type == "http://www.w3.org/2001/XMLSchema#dateTime")
-    as.POSIXct(literal,format="%FT%T")
+        as.POSIXct(literal,format="%FT%T")
   else if(type == "http://www.w3.org/2001/XMLSchema#time")
-    as.POSIXct(literal,format="%T")
+        as.POSIXct(literal,format="%T")
   else if(type == "http://www.w3.org/2001/XMLSchema#date")
-    as.POSIXct(literal)
+        as.POSIXct(literal)
   else if(type == "http://www.w3.org/2001/XMLSchema#gYearMonth")
-    as.POSIXct(literal,format="%Y-%m")
+        as.POSIXct(literal,format="%Y-%m")
   else if(type == "http://www.w3.org/2001/XMLSchema#gYear")
-    as.POSIXct(literal,format="%Y")
+        as.POSIXct(literal,format="%Y")
   else if(type == "http://www.w3.org/2001/XMLSchema#gMonthDay")
-    as.POSIXct(literal,format="--%m-%d")
+        as.POSIXct(literal,format="--%m-%d")
   else if(type == "http://www.w3.org/2001/XMLSchema#gDay")
-    as.POSIXct(literal,format="---%d")
+        as.POSIXct(literal,format="---%d")
   else if(type == "http://www.w3.org/2001/XMLSchema#gMonth")
-    as.POSIXct(literal,format="--%m")
-  else
-    paste('"', literal, '"^^', type_uri, sep="")
+        as.POSIXct(literal,format="--%m")
+  else {
+      qname <- qnames(type, ns)
+      if(unlist(qname) == unlist(type))
+          type_uri <- paste('<', type, '>', sep="")
+      else
+          type_uri <- qname
+      paste('"', literal, '"^^', type_uri, sep="")
+  }
 }
 
-dropNS <- function(df,ns) {
+dropNS <- function(df, ns) {
   data.frame(lapply(df, 
                     function(c) {
                       if(is.factor(c)) {
                         c <- as.character(c)
-                        c <- qnames(c,ns)
+                        c <- qnames(c, ns)
                         return(as.factor(c))
                       }
                       if (is.character(c))
-                        return(qnames(c,ns))
+                        return(qnames(c, ns))
                       return(c)
                       } ))
 }
