@@ -2,7 +2,7 @@
 #library(RCurl)
 
 sparqlns <- c('s'='http://www.w3.org/2005/sparql-results#')
-commonns <- c('xsd' = '<http://www.w3.org/2001/XMLSchema#>',
+commonNS <- c('xsd' = '<http://www.w3.org/2001/XMLSchema#>',
               'rdf' = '<http://www.w3.org/1999/02/22-rdf-syntax-ns#>',
               'rdfs' = '<http://www.w3.org/2000/01/rdf-schema#>',
               'owl' ='<http://www.w3.org/2002/07/owl#>',
@@ -20,8 +20,9 @@ SPARQL <- function(url = "http://localhost/", query="",
                    ns = NULL, param = "",
                    update = FALSE, 
                    addPrefix = length(ns) & !grepl("PREFIX", query),
-                   extra = NULL, format="xml", curl_args = list(), parser_args = list(),
-                   curl = getCurlHandle())
+                   extra = NULL, format="xml", parser_args = list(),
+                   curl = getCurlHandle(),
+                   asText = FALSE, ...)
 {
   if (!is.null(extra)) 
     extrastr <- paste('&', sapply(seq(1,length(extra)),
@@ -41,11 +42,15 @@ SPARQL <- function(url = "http://localhost/", query="",
     if(format == 'xml') {
         args = list(query = query)
         args = append(args, extra)
+        curl_args = list(...)        
         curl_args[["httpheader"]] = c(Accept="application/sparql-results+xml")
-        tf <- getForm(url, .params = args, .opts = curl_args, curl = curl)
+        tf <- getForm(url, .params = args, .opts = curl_args, curl = curl, ...)
 #      tf <- do.call(getURL, append(list(url = paste(url, '?', param, '=', gsub('\\+','%2B', URLencode(query, reserved = TRUE)), extrastr, sep=""),
 #                                               httpheader = c(Accept="application/sparql-results+xml"), curl = curl),
 #                                          curl_args))
+        if(asText)
+            return(tf)
+        
         df <- processXMLResults(tf, parser_args, sparqlns, ns)      
 
     } else if (format %in% c('csv', 'tsv')) {
@@ -75,7 +80,11 @@ SPARQL <- function(url = "http://localhost/", query="",
 processXMLResults =
 function(txt, parser_args, sparqlns, ns)
 {
-    DOM <- do.call(xmlParse, append(list(txt), parser_args))
+    DOM <- if(is(txt, "XMLInternalDocument"))
+              txt
+           else
+              DOM <- do.call(xmlParse, append(list(txt), parser_args))
+    
     if(length(getNodeSet(DOM, '//s:result[1]', namespaces = sparqlns)) == 0) {
         df <- data.frame()
     } else {
