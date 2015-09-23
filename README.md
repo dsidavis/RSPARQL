@@ -5,6 +5,7 @@ This explicitly extends the original SPARQL package on CRAN and
 we hope to integrate the changes back to that package rather than forking two
 developments.
 The changes here are to 
+
   a) add new features to the SPARQL() function, e.g., add a curl handle,
     insert PREFIX commands by identifying namespaces used in the query,
   b) improve the performance of converting the XML in a query result to a data frame,
