@@ -1,7 +1,7 @@
 Package: RSPARQL
 Type: Package
 Title: SPARQL client
-Version: 1.16
+Version: 2.0
 Date: 2013-10-23
 Author: Willem Robert van Hage <willem.van.hage@synerscope.com>, with contributions from: Tomi Kauppinen, Benedikt Graeler, Christopher Davis, Jesper Hoeksema, Alan Ruttenberg, and Daniel Bahls.  Modified by Duncan Temple Lang
 Maintainer: Duncan Temple Lang <duncan@r-project.org>
