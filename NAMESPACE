@@ -2,6 +2,9 @@ import(XML)
 import(RCurl)
 
 export(SPARQL)
-export(commonns)
+export(commonNS)
 export(sparqlns)
 export(sparqltest)
+
+export(getClasses, getTypes, getPredicates, getPredicatesByClass)
+
