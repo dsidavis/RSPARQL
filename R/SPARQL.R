@@ -18,7 +18,7 @@ commonNS <- c('xsd' = '<http://www.w3.org/2001/XMLSchema#>',
 # Read SPARQL results from end-point
 #
 SPARQL <- function(url = "http://localhost/", query="", 
-                   ns = NULL, param = "",
+                   ns = commonNS, param = "",
                    update = FALSE, 
                    addPrefix = length(ns) & !grepl("PREFIX", query),
                    extraArgs = NULL, format = "xml", parser_args = list(),

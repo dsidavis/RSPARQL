@@ -4,7 +4,7 @@ function(txt, parser_args, sparqlns, ns)
     DOM <- if(is(txt, "XMLInternalDocument"))
               txt
            else
-              DOM <- do.call(xmlParse, append(list(txt), parser_args))
+              do.call(xmlParse, append(list(txt), parser_args))
     
     if(length(getNodeSet(DOM, '//s:result[1]', namespaces = sparqlns)) == 0) {
         df <- data.frame()
@@ -97,6 +97,10 @@ getVarResults2 =
 function(id, DOM, ns)
 {
    nodes = getNodeSet(DOM, sprintf("//s:result/s:binding[@name = '%s']", id), namespaces = sparqlns)
+
+   if(length(nodes) == 0)
+       return(list())
+   
    ans = vector("list", length(nodes))
    
    nodeNames = xpathSApply(DOM, sprintf("//s:result/s:binding[@name = '%s']/s:*", id), xmlName, namespaces = sparqlns)
@@ -112,7 +116,7 @@ function(id, DOM, ns)
    if(!all(i | j | k))
       browser()
    
-   ans
+   simplify2array(ans)
 
 # nodes <- getNodeSet(DOM, sprintf("//s:result/s:binding[@name = '%s']", id), namespaces = sparqlns)
 # uriNodes <- xpathSApply(DOM, sprintf("//s:result/s:binding[@name = '%s']/s:uri/text()", id), xmlValue, namespaces = sparqlns)
