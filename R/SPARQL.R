@@ -28,6 +28,8 @@ SPARQL <- function(url = "http://localhost/", query="",
                    quiet = TRUE,
                    ...)
 {
+
+  ns = fixNamespaces(ns)
     
   if(!update) {
     if (param == "") 
@@ -43,7 +45,13 @@ SPARQL <- function(url = "http://localhost/", query="",
         curl_args[["httpheader"]] = c(Accept = contentType)
         if(!quiet)
             message("submitting SPARQL query\n")
-        tf <- getForm(url, .params = args, .opts = curl_args, curl = curl, binary = FALSE)
+        
+        tryCatch( tf <- getForm(url, .params = args, .opts = curl_args, curl = curl, binary = FALSE),
+                  Bad_Request = function(e) {
+                      e$message = e$body
+                      class(e) = c("BadSPARQLRequest" , class(e))
+                      stop(e)
+                  })
 
        
         if(asText)
@@ -53,9 +61,9 @@ SPARQL <- function(url = "http://localhost/", query="",
             message("processing SPARQL result\n")
         
         df <- if(format == "xml")
-                 processXMLResults(tf, parser_args, sparqlns, ns)
+                processXMLResults(tf, parser_args, sparqlns, ns)
               else
-                 processJSONResults(tf, parser_args, sparqlns, ns)                  
+                processJSONResults(tf, parser_args, sparqlns, ns)                  
 
     } else if (format %in% c('csv', 'tsv')) {
       tf <- do.call(getURL, append(list(url = paste(url, '?', param, '=', gsub('\\+','%2B', URLencode(query,reserved=TRUE)), extrastr, sep="")),
@@ -106,6 +114,16 @@ function(q, nsDefs)
       q
 }
 
+
+fixNamespaces =
+function(x)
+{
+  w = !grepl("^\\<.*\\>$", x)
+  if(any(w)) 
+      x[!w] = sprintf("<%s>", x[!w])
+
+  x
+}
 
 
 
