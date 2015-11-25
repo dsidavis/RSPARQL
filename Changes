@@ -1,0 +1,30 @@
+2.0-0
+
+* Changed the name to RSPARQL.
+
+* Processing XML results is faster.
+
+* Return the data frame directly, not as a list() with result and namespaces. 
+  namespaces are now an attribute.
+
+* Fix the case where there is a single variable returned and it is not structured as a data.frame, but a
+  vector/matrix.
+
+* Handle the case where the SELECT clause refers to variables not defined in the WHERE clause.
+  Create a column of NAs.
+
+* Allow the caller to use the namespace abbreviations in the result, rather than the complete URI.
+
+* Automatically add PREFIX commands to the query by detecting the prefixes within the SPARQL query code
+  and matching them to the namespaces provided by the caller (and the common namespaces).
+
+* Catch Bad_Request errors and raise an error displaying the error message from the SPARQL server explaining
+  the problem with the query.
+
+* Functions to query the meta-data of the schema of the SPARQL endpoint.
+  getClasses(), getTypes(), getPredicates(), getPredicatesByClass(), getClassPredType().
+
+* Method to display the meta-data for the SPARQL schema.
+
+
+

@@ -1,5 +1,5 @@
 processXMLResults =
-function(txt, parser_args, sparqlns, ns)
+function(txt, parser_args, sparqlns, ns, subAbbrevs = FALSE)
 {
     DOM <- if(is(txt, "XMLInternalDocument"))
               txt
@@ -22,15 +22,34 @@ function(txt, parser_args, sparqlns, ns)
         if(length(attrs) == 1) 
            df <- structure(data.frame(unlist(res), stringsAsFactors = FALSE), names = attrs)
         else {
+
+                # Check if there are some variables that have no values
+                # when there are some that do.
+                # This happens when the SELECT clause identifies variables
+                # that were never defined. We could drop them, but instead we
+                # just add them as NAs
+            nums = sapply(res, length)
+            w = (nums == 0)
+            if(!all(w) && any(w))  {
+               res[w] = replicate(sum(w), rep(NA, max(nums)), simplify = FALSE)
+               warning("no values in SPARQL result for ", paste(attrs[w], collapse = ", "),
+                         ".  ", if(sum(w) > 1) "Are they" else "Is it", " defined in the WHERE clause?" )
+            }
+
+            
             df <- data.frame(res, stringsAsFactors = FALSE)
             names(df) = attrs
             rm(res)
-        
-                # FIXME: find neater way to unlist columns
-#            for(i in 1:length(df)) 
-#                df[[i]] <- as.vector(unlist(df[[i]]))
         }
     }
+
+    if(is.character(subAbbrevs)) {
+        ns = subAbbrevs
+        subAbbrevs = TRUE
+    }
+        
+    if(subAbbrevs) 
+       df[] = lapply(df, subNSAbbrevs, ns)
 
     df
 }

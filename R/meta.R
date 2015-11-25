@@ -6,15 +6,20 @@ function(owl = TRUE, ..., fun = SPARQL, asIs = FALSE)
 {
 
    q = if(!owl) 
-       "SELECT DISTINCT * {  {  ?s rdfs:class ?class . } UNION {?s owl:class ?class . }  UNION { ?s rdfs:subClassOf ?class . } ?class a ?classType }"
+       "SELECT DISTINCT * { {  ?s rdfs:class ?class . }
+                            UNION {?s owl:class ?class . }
+                            UNION { ?s rdfs:subClassOf ?class . }
+                            ?class a ?classType
+                          }"
        else
            "select distinct ?resource {
                   ?resource rdf:type owl:Class .
+                         # FILTER ( NOT isBlank(?resource) )
             }"
     
    ans = fun(q, ns = commonNS, ...)
-   if(nrow(ans$results) > 0) {
-      classes = ans$results[[1]]
+   if(nrow(ans) > 0) {
+      classes = ans[[1]]
       if(asIs)
           classes
       else
@@ -25,13 +30,22 @@ function(owl = TRUE, ..., fun = SPARQL, asIs = FALSE)
 
 getTypes =
     #  getTypes(fun = qmeamc)    
-function(..., fun = SPARQL, asIs = FALSE)
+function(..., fun = SPARQL, asIs = subAbbrevs, subAbbrevs = TRUE)
 {
-  ans = fun("SELECT DISTINCT ?ty {  ?s rdf:type ?ty . }", ...)
-  if(asIs)
-      ans$results[[1]]
-  else    
-     getNamesNS( ans$results[[1]])
+  ans = fun("SELECT DISTINCT ?ty {  ?s rdf:type ?ty . }", ..., subAbbrevs = subAbbrevs)
+
+  ns = commonNS
+  if(is.character(subAbbrevs)) {
+      ns = subAbbrevs
+      subAbbrevs = TRUE
+  }
+  
+  if(subAbbrevs)
+     subNSAbbrevs(ans[[1]], ns)
+  else if(asIs) {
+      ans[[1]]
+  } else    
+     getNamesNS( ans[[1]])
 }
 
 getPredicates =
@@ -44,9 +58,9 @@ function(..., fun = SPARQL, asIs = FALSE)
 {
   ans = fun("SELECT DISTINCT ?pred {  ?s ?pred ?ty . }", ...)
   if(asIs)
-      ans$results[[1]]
+      ans[[1]]
   else
-      getNamesNS( ans$results[[1]])
+      getNamesNS( ans[[1]])
 }
 
 
@@ -77,3 +91,41 @@ function(values)
    names(ans)[!i] = dirname(tmp[!i])
    ans
 }
+
+
+
+getClassPredType = 
+function(className, ..., fun = SPARQL, subAbbrevs = TRUE) {
+     q = sprintf("SELECT DISTINCT ?pred ?type WHERE {
+                                                ?m a %s ;
+                                                   ?pred ?obj .
+                                                ?obj  a ?type .
+                                             }", className)
+     ans = fun(q, subAbbrevs = subAbbrevs, ...)
+     ans$class = rep(className, nrow(ans))
+     ans
+}
+
+sparqlMetadata =
+function(..., types = getTypes(..., fun = fun, subAbbrevs = subAbbrevs), fun = SPARQL, subAbbrevs = TRUE)
+{
+  info = lapply(types, getClassPredType, fun = fun, ...)
+  info = do.call(rbind, info)
+  class(info) = c("SPARQLClassPredType", "SPARQLMetaData", class(info))
+  info
+}
+
+plot.SPARQLClassPredType =
+function(x, ...)
+{
+   if(!require("igraph"))
+       stop("The igraph package is not installed")
+
+   g = graph.edgelist( as.matrix( x[, c("class", "type")] ) )   
+   E(g)$label = x$pred
+   plot(g, edge.arrow.size = .5, ...)
+}
+
+
+
+

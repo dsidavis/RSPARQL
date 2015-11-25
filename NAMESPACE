@@ -8,3 +8,8 @@ export(sparqltest)
 
 export(getClasses, getTypes, getPredicates, getPredicatesByClass)
 
+export(getClassPredType)
+
+export(sparqlMetadata)
+S3method(plot, SPARQLClassPredType)
+

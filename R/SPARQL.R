@@ -26,17 +26,20 @@ SPARQL <- function(url = "http://localhost/", query="",
                    asText = FALSE,
                    contentType = sprintf("application/sparql-results+%s", format),
                    quiet = TRUE,
+                   subAbbrevs = FALSE,
                    ...)
 {
 
   ns = fixNamespaces(ns)
+  i = !(names(commonNS) %in% names(ns))
+  ns = c(ns, commonNS[i])
     
   if(!update) {
     if (param == "") 
       param <- "query"
 
     if(addPrefix && length(ns)) 
-       query = addNamespaces(query, c(ns, commonNS))
+       query = addNamespaces(query, ns) # c(ns, commonNS))
 
     if(format %in% c('xml', 'json')) {
         args = list(query = query)
@@ -48,8 +51,11 @@ SPARQL <- function(url = "http://localhost/", query="",
         
         tryCatch( tf <- getForm(url, .params = args, .opts = curl_args, curl = curl, binary = FALSE),
                   Bad_Request = function(e) {
-                      e$message = e$body
-                      class(e) = c("BadSPARQLRequest" , class(e))
+                      if("body" %in% names(e)) {
+                          e$message = e$body
+                          class(e) = c("BadSPARQLRequest" , class(e))
+                      }
+                      
                       stop(e)
                   })
 
@@ -61,7 +67,7 @@ SPARQL <- function(url = "http://localhost/", query="",
             message("processing SPARQL result\n")
         
         df <- if(format == "xml")
-                processXMLResults(tf, parser_args, sparqlns, ns)
+                processXMLResults(tf, parser_args, sparqlns, ns, subAbbrevs = subAbbrevs)
               else
                 processJSONResults(tf, parser_args, sparqlns, ns)                  
 
@@ -77,7 +83,7 @@ SPARQL <- function(url = "http://localhost/", query="",
       return(list(results = NULL, namespaces = ns))
     }
     
-    list(results = df, namespaces = ns)
+    structure(df, namespaces = ns)
   } else {
       
     if (param == "") 
